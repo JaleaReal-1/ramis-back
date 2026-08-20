@@ -1,0 +1,28 @@
+from __future__ import annotations
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Float
+from sqlalchemy.orm import relationship
+from app.database.base import Base
+
+class RutaAsignacion(Base):
+    __tablename__ = "rutas_asignaciones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    vehiculo_id = Column(Integer, ForeignKey("vehiculos.id"), nullable=False)
+    trabajador_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    origen = Column(String, nullable=False)
+    destino = Column(String, nullable=False)
+    fecha_salida = Column(DateTime, nullable=False)
+    fecha_llegada_estimada = Column(DateTime, nullable=False)
+    estado_ruta = Column(String, default="pendiente", nullable=False)
+
+    # Nuevos campos de inspección de vehículo
+    kilometraje_salida = Column(Float, nullable=False)
+    kilometraje_llegada = Column(Float, nullable=True)
+    combustible_salida = Column(String, nullable=False)
+    combustible_llegada = Column(String, nullable=True)
+    observaciones_salida = Column(String, nullable=True)
+    observaciones_llegada = Column(String, nullable=True)
+
+    # Relaciones
+    vehiculo = relationship("Vehiculo", back_populates="asignaciones")
+    trabajador = relationship("User", foreign_keys=[trabajador_id])
