@@ -1,3 +1,6 @@
+import os
+os.environ["TESTING"] = "1"
+
 import pytest
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
@@ -7,6 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database.base import Base
 from app.database.connection import get_db
+import app.models  # noqa: F401  — tablas de transportes en create_all
 from app.main import app
 
 # IMPORTANTE:

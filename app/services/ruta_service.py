@@ -2,10 +2,18 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
+from datetime import datetime
 from app.models.ruta_asignacion import RutaAsignacion
 from app.models.vehiculo import Vehiculo
 from app.models.user import User
-from app.schemas.ruta_asignacion_schema import RutaAsignacionCreate, RutaAsignacionUpdate, RutaAsignacionFinalizar
+from app.models.mantenimiento import Mantenimiento
+from app.schemas.ruta_asignacion_schema import (
+    RutaAsignacionCreate,
+    RutaAsignacionUpdate,
+    RutaAsignacionFinalizar,
+    RutaAsignacionIniciar
+)
+from app.utils.pdf_generator import generar_pdf_ruta
 
 class RutaService:
     def __init__(self, db: Session):
@@ -25,7 +33,6 @@ class RutaService:
 
     def create_ruta(self, schema: RutaAsignacionCreate) -> RutaAsignacion:
         # Rule 1: Buscar al usuario por trabajador_id.
-        # Si no existe o su role no es exactamente "trabajador", lanzar HTTPException(status_code=403, detail="El usuario no tiene el rol de trabajador.")
         usuario = self.db.query(User).filter(User.id == schema.trabajador_id).first()
         if not usuario or usuario.role != "trabajador":
             raise HTTPException(
@@ -52,14 +59,14 @@ class RutaService:
                 detail="Vehículo no encontrado."
             )
 
-        # Si su estado es "en_ruta" o "en_mantenimiento", lanzar HTTPException(400, "El vehículo no está disponible.")
-        if vehiculo.estado in ["en_ruta", "en_mantenimiento"]:
+        # Si su estado es "asignado", "en_ruta" o "en_mantenimiento", lanzar HTTPException(400, "El vehículo no está disponible.")
+        if vehiculo.estado in ["asignado", "en_ruta", "en_mantenimiento"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="El vehículo no está disponible."
             )
 
-        # Rule 4: Crear la ruta y actualizar automáticamente el estado del vehículo a "en_ruta"
+        # Rule 4: Crear la ruta y actualizar automáticamente el estado del vehículo a "asignado"
         nueva_ruta = RutaAsignacion(
             vehiculo_id=schema.vehiculo_id,
             trabajador_id=schema.trabajador_id,
@@ -68,18 +75,54 @@ class RutaService:
             fecha_salida=schema.fecha_salida,
             fecha_llegada_estimada=schema.fecha_llegada_estimada,
             estado_ruta="pendiente",  # Se inicializa como pendiente
-            kilometraje_salida=schema.kilometraje_salida,
-            combustible_salida=schema.combustible_salida,
             observaciones_salida=schema.observaciones_salida
         )
         
-        # Actualizamos el estado del vehículo a "en_ruta"
-        vehiculo.estado = "en_ruta"
+        # Actualizamos el estado del vehículo a "asignado"
+        vehiculo.estado = "asignado"
 
         self.db.add(nueva_ruta)
         self.db.commit()
         self.db.refresh(nueva_ruta)
         return nueva_ruta
+
+    def iniciar_ruta(self, ruta_id: int, schema: RutaAsignacionIniciar) -> RutaAsignacion:
+        ruta = self.get_ruta_by_id(ruta_id)
+        
+        # Validar que los checks sean True (doble validación)
+        if not (schema.check_llantas and schema.check_frenos and schema.check_luces):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Todos los checks de inspección deben ser aprobados (True) para iniciar la ruta."
+            )
+
+        # Buscar el vehículo
+        vehiculo = self.db.query(Vehiculo).filter(Vehiculo.id == ruta.vehiculo_id).first()
+        if not vehiculo:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Vehículo no encontrado."
+            )
+
+        # Actualizar datos de inicio
+        ruta.estado_ruta = "en_progreso"
+        ruta.kilometraje_salida = schema.kilometraje_salida
+        ruta.combustible_salida = schema.combustible_salida
+        ruta.observaciones_salida = schema.observaciones_salida
+        ruta.firma_trabajador = schema.firma_trabajador
+        ruta.check_llantas = schema.check_llantas
+        ruta.check_frenos = schema.check_frenos
+        ruta.check_luces = schema.check_luces
+
+        # Pasar vehículo a 'en_ruta'
+        vehiculo.estado = "en_ruta"
+
+        # Generar el PDF
+        generar_pdf_ruta(ruta)
+
+        self.db.commit()
+        self.db.refresh(ruta)
+        return ruta
 
     def finalize_ruta(self, ruta_id: int, schema: RutaAsignacionFinalizar) -> RutaAsignacion:
         ruta = self.get_ruta_by_id(ruta_id)
@@ -90,10 +133,27 @@ class RutaService:
         ruta.combustible_llegada = schema.combustible_llegada
         ruta.observaciones_llegada = schema.observaciones_llegada
 
-        # Cambiar el estado del vehículo asociado a "disponible"
+        # Cambiar el estado del vehículo asociado
         vehiculo = self.db.query(Vehiculo).filter(Vehiculo.id == ruta.vehiculo_id).first()
         if vehiculo:
-            vehiculo.estado = "disponible"
+            obs = (schema.observaciones_llegada or "").strip().lower()
+            tiene_falla = False
+            # Identificar fallas reales (distintas de "ninguna", "ok", "todo ok", "llegada ok", "perfecto", "sin novedad", "")
+            if obs and obs not in ["ninguna", "ok", "sin novedad", "ninguno", "todo ok", "llegada ok", "perfecto"]:
+                tiene_falla = True
+            
+            if tiene_falla:
+                vehiculo.estado = "en_mantenimiento"
+                nuevo_mantenimiento = Mantenimiento(
+                    vehiculo_id=ruta.vehiculo_id,
+                    fecha_ingreso=datetime.utcnow(),
+                    descripcion_falla=schema.observaciones_llegada,
+                    costo=0.0,
+                    estado="en_taller"
+                )
+                self.db.add(nuevo_mantenimiento)
+            else:
+                vehiculo.estado = "disponible"
 
         self.db.commit()
         self.db.refresh(ruta)
@@ -103,17 +163,15 @@ class RutaService:
         ruta = self.get_ruta_by_id(ruta_id)
         ruta.estado_ruta = nuevo_estado
 
-        if nuevo_estado == "completada":
-            vehiculo = self.db.query(Vehiculo).filter(Vehiculo.id == ruta.vehiculo_id).first()
-            if vehiculo:
+        vehiculo = self.db.query(Vehiculo).filter(Vehiculo.id == ruta.vehiculo_id).first()
+        if vehiculo:
+            if nuevo_estado == "completada":
                 vehiculo.estado = "disponible"
-        elif nuevo_estado == "en_progreso":
-            vehiculo = self.db.query(Vehiculo).filter(Vehiculo.id == ruta.vehiculo_id).first()
-            if vehiculo:
+            elif nuevo_estado == "en_progreso":
                 vehiculo.estado = "en_ruta"
-        elif nuevo_estado in ["cancelada", "pendiente"]:
-            vehiculo = self.db.query(Vehiculo).filter(Vehiculo.id == ruta.vehiculo_id).first()
-            if vehiculo:
+            elif nuevo_estado == "pendiente":
+                vehiculo.estado = "asignado"
+            elif nuevo_estado in ["cancelada"]:
                 vehiculo.estado = "disponible"
 
         self.db.commit()
@@ -144,6 +202,15 @@ class RutaService:
             ruta.observaciones_salida = schema.observaciones_salida
         if schema.observaciones_llegada is not None:
             ruta.observaciones_llegada = schema.observaciones_llegada
+
+        if schema.firma_trabajador is not None:
+            ruta.firma_trabajador = schema.firma_trabajador
+        if schema.check_llantas is not None:
+            ruta.check_llantas = schema.check_llantas
+        if schema.check_frenos is not None:
+            ruta.check_frenos = schema.check_frenos
+        if schema.check_luces is not None:
+            ruta.check_luces = schema.check_luces
 
         if schema.estado_ruta is not None:
             self.update_estado_ruta(ruta_id, schema.estado_ruta)

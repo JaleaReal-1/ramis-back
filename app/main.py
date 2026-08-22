@@ -11,6 +11,7 @@ import os
 from app.database.base import Base
 from app.database.connection import engine, get_db
 from app.models.user import User
+import app.models  # noqa: F401  — registra vehiculos, rutas y mantenimientos en Base.metadata
 from app.security.hashing import Hash
 from sqlalchemy.orm import Session
 

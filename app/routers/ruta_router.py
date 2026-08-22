@@ -8,7 +8,8 @@ from app.schemas.ruta_asignacion_schema import (
     RutaAsignacionCreate,
     RutaAsignacionUpdate,
     RutaAsignacionResponse,
-    RutaAsignacionFinalizar
+    RutaAsignacionFinalizar,
+    RutaAsignacionIniciar
 )
 
 router = APIRouter(
@@ -37,6 +38,11 @@ def crear_ruta(schema: RutaAsignacionCreate, db: DbDep):
 def actualizar_ruta(id: int, schema: RutaAsignacionUpdate, db: DbDep):
     service = RutaService(db)
     return service.update_ruta(id, schema)
+
+@router.patch("/{id}/iniciar", response_model=RutaAsignacionResponse)
+def iniciar_ruta(id: int, schema: RutaAsignacionIniciar, db: DbDep):
+    service = RutaService(db)
+    return service.iniciar_ruta(id, schema)
 
 @router.patch("/{id}/finalizar", response_model=RutaAsignacionResponse)
 def finalizar_ruta(id: int, schema: RutaAsignacionFinalizar, db: DbDep):
