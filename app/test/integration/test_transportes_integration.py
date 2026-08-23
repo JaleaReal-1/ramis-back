@@ -1,6 +1,32 @@
 import uuid
 from datetime import datetime, timedelta
 from typing import Optional
+import pytest
+
+from app.dependencies.auth_dependencies import get_current_user
+from app.main import app
+from app.models.user import User
+
+
+@pytest.fixture(autouse=True)
+def override_auth(db_session):
+    # Crear un usuario administrador de respaldo para la autenticación por defecto
+    user = User(
+        nombre="Admin",
+        apellidos="Principal",
+        dni="12345678",
+        cargo="Administrador",
+        email="admin@test.com",
+        password="hashed_password",
+        role="admin"
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    
+    app.dependency_overrides[get_current_user] = lambda: user
+    yield user
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 def _unique_dni() -> str:
@@ -93,7 +119,7 @@ def test_listar_rutas_y_crear_asignacion(client):
     assert vehiculo_asignado.json()["estado"] == "asignado"
 
 
-def test_iniciar_ruta(client):
+def test_iniciar_ruta(client, db_session):
     vehiculo = _crear_vehiculo(client)
     trabajador = _register_trabajador(client)
     salida = datetime.utcnow()
@@ -112,7 +138,11 @@ def test_iniciar_ruta(client):
     )
     ruta_id = creada.json()["id"]
 
+    # Traer el objeto del trabajador registrado de la BD usando db_session
+    trabajador_user = db_session.query(User).filter(User.id == trabajador["id"]).first()
+
     # Intentar iniciar con algún check en False debe fallar (Pydantic ValidationError, retorna 400 por handler custom)
+    app.dependency_overrides[get_current_user] = lambda: trabajador_user
     response_fallida = client.patch(
         f"/api/rutas/{ruta_id}/iniciar",
         json={
@@ -151,7 +181,7 @@ def test_iniciar_ruta(client):
     assert vehiculo_en_ruta.json()["estado"] == "en_ruta"
 
 
-def test_finalizar_ruta_libera_vehiculo(client):
+def test_finalizar_ruta_libera_vehiculo(client, db_session, override_auth):
     vehiculo = _crear_vehiculo(client)
     trabajador = _register_trabajador(client)
     salida = datetime.utcnow()
@@ -170,7 +200,10 @@ def test_finalizar_ruta_libera_vehiculo(client):
     )
     ruta_id = creada.json()["id"]
 
-    # Iniciar ruta primero
+    trabajador_user = db_session.query(User).filter(User.id == trabajador["id"]).first()
+
+    # Iniciar ruta primero (con rol de trabajador asignado)
+    app.dependency_overrides[get_current_user] = lambda: trabajador_user
     client.patch(
         f"/api/rutas/{ruta_id}/iniciar",
         json={
@@ -183,7 +216,8 @@ def test_finalizar_ruta_libera_vehiculo(client):
         }
     )
 
-    # Finalizar sin fallas ("Llegada ok")
+    # Finalizar sin fallas ("Llegada ok") - restauramos la autenticación de administrador
+    app.dependency_overrides[get_current_user] = lambda: override_auth
     fin = client.patch(
         f"/api/rutas/{ruta_id}/finalizar",
         json={
@@ -200,7 +234,7 @@ def test_finalizar_ruta_libera_vehiculo(client):
     assert vehiculo_libre.json()["estado"] == "disponible"
 
 
-def test_finalizar_ruta_con_falla_envia_a_mantenimiento(client):
+def test_finalizar_ruta_con_falla_envia_a_mantenimiento(client, db_session, override_auth):
     vehiculo = _crear_vehiculo(client)
     trabajador = _register_trabajador(client)
     salida = datetime.utcnow()
@@ -219,7 +253,10 @@ def test_finalizar_ruta_con_falla_envia_a_mantenimiento(client):
     )
     ruta_id = creada.json()["id"]
 
+    trabajador_user = db_session.query(User).filter(User.id == trabajador["id"]).first()
+
     # Iniciar ruta primero
+    app.dependency_overrides[get_current_user] = lambda: trabajador_user
     client.patch(
         f"/api/rutas/{ruta_id}/iniciar",
         json={
@@ -232,7 +269,8 @@ def test_finalizar_ruta_con_falla_envia_a_mantenimiento(client):
         }
     )
 
-    # Finalizar con falla real
+    # Finalizar con falla real - restauramos la autenticación de administrador
+    app.dependency_overrides[get_current_user] = lambda: override_auth
     fin = client.patch(
         f"/api/rutas/{ruta_id}/finalizar",
         json={
@@ -312,3 +350,44 @@ def test_ruta_rechaza_usuario_sin_rol_trabajador(client):
     )
     assert response.status_code == 403
     assert "trabajador" in response.json()["detail"].lower()
+
+
+def test_iniciar_ruta_rechaza_usuario_distinto_o_no_trabajador(client, db_session):
+    vehiculo = _crear_vehiculo(client)
+    trabajador = _register_trabajador(client)
+    salida = datetime.utcnow()
+    llegada = salida + timedelta(hours=2)
+
+    creada = client.post(
+        "/api/rutas/",
+        json={
+            "vehiculo_id": vehiculo["id"],
+            "trabajador_id": trabajador["id"],
+            "origen": "A",
+            "destino": "B",
+            "fecha_salida": salida.isoformat(),
+            "fecha_llegada_estimada": llegada.isoformat(),
+        },
+    )
+    ruta_id = creada.json()["id"]
+
+    # Registrar otro chofer (trabajador distinto)
+    otro_chofer = _register_trabajador(client)
+    
+    otro_user = db_session.query(User).filter(User.id == otro_chofer["id"]).first()
+
+    # Intentar iniciar con el otro trabajador debe retornar 403
+    app.dependency_overrides[get_current_user] = lambda: otro_user
+    response = client.patch(
+        f"/api/rutas/{ruta_id}/iniciar",
+        json={
+            "firma_trabajador": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            "check_llantas": True,
+            "check_frenos": True,
+            "check_luces": True,
+            "kilometraje_salida": 15000.0,
+            "combustible_salida": "3/4"
+        }
+    )
+    assert response.status_code == 403
+    assert "no tienes permiso" in response.json()["detail"].lower()

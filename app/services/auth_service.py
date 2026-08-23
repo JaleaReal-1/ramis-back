@@ -36,7 +36,9 @@ class AuthService:
 
 
     def obtener_trabajadores(self):
-        return self.db.query(User).filter(User.role == "trabajador").all()
+        return self.db.query(User).filter(
+            User.role.in_(["trabajador", "almacenero"])
+        ).all()
     def actualizar_usuario(
         self,
         user_id: int,

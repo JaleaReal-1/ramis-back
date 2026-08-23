@@ -20,7 +20,10 @@ class RutaService:
         self.db = db
 
     def get_ruta_by_id(self, ruta_id: int) -> RutaAsignacion:
-        ruta = self.db.query(RutaAsignacion).filter(RutaAsignacion.id == ruta_id).first()
+        ruta = self.db.query(RutaAsignacion).filter(
+            RutaAsignacion.id == ruta_id,
+            RutaAsignacion.estado_ruta != "inactivo"
+        ).first()
         if not ruta:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -29,7 +32,13 @@ class RutaService:
         return ruta
 
     def get_all_rutas(self) -> list[RutaAsignacion]:
-        return self.db.query(RutaAsignacion).all()
+        return self.db.query(RutaAsignacion).filter(RutaAsignacion.estado_ruta != "inactivo").all()
+
+    def get_rutas_by_trabajador(self, trabajador_id: int) -> list[RutaAsignacion]:
+        return self.db.query(RutaAsignacion).filter(
+            RutaAsignacion.trabajador_id == trabajador_id,
+            RutaAsignacion.estado_ruta != "inactivo"
+        ).all()
 
     def create_ruta(self, schema: RutaAsignacionCreate) -> RutaAsignacion:
         # Rule 1: Buscar al usuario por trabajador_id.
@@ -52,7 +61,10 @@ class RutaService:
             )
 
         # Rule 3: Buscar el vehículo por vehiculo_id
-        vehiculo = self.db.query(Vehiculo).filter(Vehiculo.id == schema.vehiculo_id).first()
+        vehiculo = self.db.query(Vehiculo).filter(
+            Vehiculo.id == schema.vehiculo_id,
+            Vehiculo.estado != "inactivo"
+        ).first()
         if not vehiculo:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -86,8 +98,20 @@ class RutaService:
         self.db.refresh(nueva_ruta)
         return nueva_ruta
 
+    def delete_ruta(self, ruta_id: int) -> dict:
+        ruta = self.get_ruta_by_id(ruta_id)
+        ruta.estado_ruta = "inactivo"
+        self.db.commit()
+        return {"detail": "Ruta marcada como inactiva correctamente."}
+
     def iniciar_ruta(self, ruta_id: int, schema: RutaAsignacionIniciar) -> RutaAsignacion:
         ruta = self.get_ruta_by_id(ruta_id)
+
+        if ruta.estado_ruta != "pendiente":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Solo se puede iniciar una ruta pendiente."
+            )
         
         # Validar que los checks sean True (doble validación)
         if not (schema.check_llantas and schema.check_frenos and schema.check_luces):
@@ -126,6 +150,12 @@ class RutaService:
 
     def finalize_ruta(self, ruta_id: int, schema: RutaAsignacionFinalizar) -> RutaAsignacion:
         ruta = self.get_ruta_by_id(ruta_id)
+
+        if ruta.estado_ruta != "en_progreso":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Solo se puede finalizar una ruta en progreso."
+            )
         
         # Actualizamos datos de llegada
         ruta.estado_ruta = "completada"
@@ -138,8 +168,22 @@ class RutaService:
         if vehiculo:
             obs = (schema.observaciones_llegada or "").strip().lower()
             tiene_falla = False
-            # Identificar fallas reales (distintas de "ninguna", "ok", "todo ok", "llegada ok", "perfecto", "sin novedad", "")
-            if obs and obs not in ["ninguna", "ok", "sin novedad", "ninguno", "todo ok", "llegada ok", "perfecto"]:
+            # Solo las observaciones que describen una incidencia envían el vehículo a mantenimiento.
+            observaciones_sin_falla = {
+                "ninguna",
+                "ninguno",
+                "ok",
+                "todo ok",
+                "llegada ok",
+                "perfecto",
+                "sin novedad",
+                "sin novedades",
+                "llegada sin novedad",
+                "llegada sin novedades",
+                "sin incidencia",
+                "sin incidencias",
+            }
+            if obs and obs not in observaciones_sin_falla:
                 tiene_falla = True
             
             if tiene_falla:

@@ -23,15 +23,22 @@ CREATE TABLE IF NOT EXISTS rutas_asignaciones (
     fecha_salida TIMESTAMP NOT NULL,
     fecha_llegada_estimada TIMESTAMP NOT NULL,
     estado_ruta VARCHAR NOT NULL DEFAULT 'pendiente',
-    kilometraje_salida FLOAT NOT NULL,
+    kilometraje_salida FLOAT,
     kilometraje_llegada FLOAT,
-    combustible_salida VARCHAR NOT NULL,
+    combustible_salida VARCHAR,
     combustible_llegada VARCHAR,
     observaciones_salida VARCHAR,
     observaciones_llegada VARCHAR
 );
 
 CREATE INDEX IF NOT EXISTS ix_rutas_asignaciones_id ON rutas_asignaciones (id);
+
+-- Compatibilidad con tablas creadas antes de agregar la inspección de seguridad.
+ALTER TABLE rutas_asignaciones
+    ADD COLUMN IF NOT EXISTS firma_trabajador VARCHAR,
+    ADD COLUMN IF NOT EXISTS check_llantas BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS check_frenos BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS check_luces BOOLEAN DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS mantenimientos (
     id SERIAL PRIMARY KEY,

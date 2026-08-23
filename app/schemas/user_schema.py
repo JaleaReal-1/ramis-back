@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 from pydantic import (
+    AliasChoices,
     BaseModel,
     ConfigDict,
     EmailStr,
@@ -50,6 +51,7 @@ class UserCreate(BaseModel):
 
     role: Optional[str] = Field(
         default="user",
+        validation_alias=AliasChoices("role", "rol"),
         description=(
             "Rol del usuario. "
             "Opciones válidas: "

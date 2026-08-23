@@ -10,7 +10,10 @@ class VehiculoService:
         self.db = db
 
     def get_vehiculo_by_id(self, vehiculo_id: int) -> Vehiculo:
-        vehiculo = self.db.query(Vehiculo).filter(Vehiculo.id == vehiculo_id).first()
+        vehiculo = self.db.query(Vehiculo).filter(
+            Vehiculo.id == vehiculo_id,
+            Vehiculo.estado != "inactivo"
+        ).first()
         if not vehiculo:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -19,7 +22,7 @@ class VehiculoService:
         return vehiculo
 
     def get_all_vehiculos(self) -> list[Vehiculo]:
-        return self.db.query(Vehiculo).all()
+        return self.db.query(Vehiculo).filter(Vehiculo.estado != "inactivo").all()
 
     def create_vehiculo(self, schema: VehiculoCreate) -> Vehiculo:
         # Verificar si la placa ya está registrada
@@ -73,6 +76,6 @@ class VehiculoService:
 
     def delete_vehiculo(self, vehiculo_id: int) -> dict:
         vehiculo = self.get_vehiculo_by_id(vehiculo_id)
-        self.db.delete(vehiculo)
+        vehiculo.estado = "inactivo"
         self.db.commit()
-        return {"detail": "Vehículo eliminado correctamente."}
+        return {"detail": "Vehículo marcado como inactivo correctamente."}

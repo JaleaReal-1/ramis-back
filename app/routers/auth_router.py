@@ -193,7 +193,8 @@ def login(
 
 @router.get(
     "/trabajadores",
-    response_model=list[UserResponse]
+    response_model=list[UserResponse],
+    summary="Listar trabajadores y almaceneros"
 )
 def obtener_trabajadores(
     db: DbDep,

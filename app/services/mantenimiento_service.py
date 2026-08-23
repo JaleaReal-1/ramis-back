@@ -11,7 +11,10 @@ class MantenimientoService:
         self.db = db
 
     def get_mantenimiento_by_id(self, mantenimiento_id: int) -> Mantenimiento:
-        mantenimiento = self.db.query(Mantenimiento).filter(Mantenimiento.id == mantenimiento_id).first()
+        mantenimiento = self.db.query(Mantenimiento).filter(
+            Mantenimiento.id == mantenimiento_id,
+            Mantenimiento.estado != "inactivo"
+        ).first()
         if not mantenimiento:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -20,11 +23,14 @@ class MantenimientoService:
         return mantenimiento
 
     def get_all_mantenimientos(self) -> list[Mantenimiento]:
-        return self.db.query(Mantenimiento).all()
+        return self.db.query(Mantenimiento).filter(Mantenimiento.estado != "inactivo").all()
 
     def create_mantenimiento(self, schema: MantenimientoCreate) -> Mantenimiento:
         # Verificar que el vehículo exista
-        vehiculo = self.db.query(Vehiculo).filter(Vehiculo.id == schema.vehiculo_id).first()
+        vehiculo = self.db.query(Vehiculo).filter(
+            Vehiculo.id == schema.vehiculo_id,
+            Vehiculo.estado != "inactivo"
+        ).first()
         if not vehiculo:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -79,12 +85,6 @@ class MantenimientoService:
 
     def delete_mantenimiento(self, mantenimiento_id: int) -> dict:
         mantenimiento = self.get_mantenimiento_by_id(mantenimiento_id)
-        
-        # Si se elimina el mantenimiento y el vehículo estaba "en_mantenimiento", lo liberamos
-        vehiculo = self.db.query(Vehiculo).filter(Vehiculo.id == mantenimiento.vehiculo_id).first()
-        if vehiculo and vehiculo.estado == "en_mantenimiento":
-            vehiculo.estado = "disponible"
-
-        self.db.delete(mantenimiento)
+        mantenimiento.estado = "inactivo"
         self.db.commit()
-        return {"detail": "Registro de mantenimiento eliminado correctamente."}
+        return {"detail": "Mantenimiento marcado como inactivo correctamente."}
