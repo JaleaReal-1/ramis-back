@@ -14,6 +14,8 @@ class RutaAsignacion(Base):
     fecha_salida = Column(DateTime, nullable=False)
     fecha_llegada_estimada = Column(DateTime, nullable=False)
     estado_ruta = Column(String, default="pendiente", nullable=False)
+    fecha_baja = Column(DateTime, nullable=True)
+    usuario_baja = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     # Nuevos campos de inspección de vehículo (se llenan al iniciar la ruta, por lo que son nullable)
     kilometraje_salida = Column(Float, nullable=True)

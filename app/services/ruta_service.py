@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
-from datetime import datetime
+from datetime import datetime, timezone
 from app.models.ruta_asignacion import RutaAsignacion
 from app.models.vehiculo import Vehiculo
 from app.models.user import User
@@ -98,12 +98,6 @@ class RutaService:
         self.db.refresh(nueva_ruta)
         return nueva_ruta
 
-    def delete_ruta(self, ruta_id: int) -> dict:
-        ruta = self.get_ruta_by_id(ruta_id)
-        ruta.estado_ruta = "inactivo"
-        self.db.commit()
-        return {"detail": "Ruta marcada como inactiva correctamente."}
-
     def iniciar_ruta(self, ruta_id: int, schema: RutaAsignacionIniciar) -> RutaAsignacion:
         ruta = self.get_ruta_by_id(ruta_id)
 
@@ -190,7 +184,7 @@ class RutaService:
                 vehiculo.estado = "en_mantenimiento"
                 nuevo_mantenimiento = Mantenimiento(
                     vehiculo_id=ruta.vehiculo_id,
-                    fecha_ingreso=datetime.utcnow(),
+                    fecha_ingreso=datetime.now(timezone.utc),
                     descripcion_falla=schema.observaciones_llegada,
                     costo=0.0,
                     estado="en_taller"
@@ -225,36 +219,16 @@ class RutaService:
     def update_ruta(self, ruta_id: int, schema: RutaAsignacionUpdate) -> RutaAsignacion:
         ruta = self.get_ruta_by_id(ruta_id)
 
-        if schema.origen is not None:
-            ruta.origen = schema.origen
-        if schema.destino is not None:
-            ruta.destino = schema.destino
-        if schema.fecha_salida is not None:
-            ruta.fecha_salida = schema.fecha_salida
-        if schema.fecha_llegada_estimada is not None:
-            ruta.fecha_llegada_estimada = schema.fecha_llegada_estimada
-        
-        if schema.kilometraje_salida is not None:
-            ruta.kilometraje_salida = schema.kilometraje_salida
-        if schema.kilometraje_llegada is not None:
-            ruta.kilometraje_llegada = schema.kilometraje_llegada
-        if schema.combustible_salida is not None:
-            ruta.combustible_salida = schema.combustible_salida
-        if schema.combustible_llegada is not None:
-            ruta.combustible_llegada = schema.combustible_llegada
-        if schema.observaciones_salida is not None:
-            ruta.observaciones_salida = schema.observaciones_salida
-        if schema.observaciones_llegada is not None:
-            ruta.observaciones_llegada = schema.observaciones_llegada
-
-        if schema.firma_trabajador is not None:
-            ruta.firma_trabajador = schema.firma_trabajador
-        if schema.check_llantas is not None:
-            ruta.check_llantas = schema.check_llantas
-        if schema.check_frenos is not None:
-            ruta.check_frenos = schema.check_frenos
-        if schema.check_luces is not None:
-            ruta.check_luces = schema.check_luces
+        campos_actualizables = (
+            "origen", "destino", "fecha_salida", "fecha_llegada_estimada",
+            "kilometraje_salida", "kilometraje_llegada", "combustible_salida",
+            "combustible_llegada", "observaciones_salida", "observaciones_llegada",
+            "firma_trabajador", "check_llantas", "check_frenos", "check_luces"
+        )
+        for campo in campos_actualizables:
+            valor = getattr(schema, campo)
+            if valor is not None:
+                setattr(ruta, campo, valor)
 
         if schema.estado_ruta is not None:
             self.update_estado_ruta(ruta_id, schema.estado_ruta)
@@ -264,13 +238,15 @@ class RutaService:
 
         return ruta
 
-    def delete_ruta(self, ruta_id: int) -> dict:
+    def delete_ruta(self, ruta_id: int, usuario_id: int) -> dict:
         ruta = self.get_ruta_by_id(ruta_id)
         if ruta.estado_ruta in ["pendiente", "en_progreso"]:
             vehiculo = self.db.query(Vehiculo).filter(Vehiculo.id == ruta.vehiculo_id).first()
             if vehiculo:
                 vehiculo.estado = "disponible"
 
-        self.db.delete(ruta)
+        ruta.estado_ruta = "inactivo"
+        ruta.fecha_baja = datetime.now(timezone.utc)
+        ruta.usuario_baja = usuario_id
         self.db.commit()
-        return {"detail": "Asignación de ruta eliminada correctamente."}
+        return {"detail": "Ruta marcada como inactiva correctamente."}

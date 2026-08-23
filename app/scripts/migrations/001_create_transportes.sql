@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS vehiculos (
     modelo VARCHAR NOT NULL,
     capacidad_carga FLOAT NOT NULL,
     estado VARCHAR NOT NULL DEFAULT 'disponible'
+    ,fecha_baja TIMESTAMP
+    ,usuario_baja INTEGER REFERENCES users (id)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS ix_vehiculos_placa ON vehiculos (placa);
@@ -29,6 +31,8 @@ CREATE TABLE IF NOT EXISTS rutas_asignaciones (
     combustible_llegada VARCHAR,
     observaciones_salida VARCHAR,
     observaciones_llegada VARCHAR
+    ,fecha_baja TIMESTAMP
+    ,usuario_baja INTEGER REFERENCES users (id)
 );
 
 CREATE INDEX IF NOT EXISTS ix_rutas_asignaciones_id ON rutas_asignaciones (id);
@@ -47,6 +51,20 @@ CREATE TABLE IF NOT EXISTS mantenimientos (
     descripcion_falla VARCHAR NOT NULL,
     costo FLOAT NOT NULL,
     estado VARCHAR NOT NULL DEFAULT 'en_taller'
+    ,fecha_baja TIMESTAMP
+    ,usuario_baja INTEGER REFERENCES users (id)
 );
 
 CREATE INDEX IF NOT EXISTS ix_mantenimientos_id ON mantenimientos (id);
+
+ALTER TABLE vehiculos
+    ADD COLUMN IF NOT EXISTS fecha_baja TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS usuario_baja INTEGER REFERENCES users (id);
+
+ALTER TABLE rutas_asignaciones
+    ADD COLUMN IF NOT EXISTS fecha_baja TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS usuario_baja INTEGER REFERENCES users (id);
+
+ALTER TABLE mantenimientos
+    ADD COLUMN IF NOT EXISTS fecha_baja TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS usuario_baja INTEGER REFERENCES users (id);

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
+from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from app.models.vehiculo import Vehiculo
 from app.schemas.vehiculo_schema import VehiculoCreate, VehiculoUpdate
@@ -67,15 +68,14 @@ class VehiculoService:
             vehiculo.modelo = schema.modelo
         if schema.capacidad_carga is not None:
             vehiculo.capacidad_carga = schema.capacidad_carga
-        if schema.estado is not None:
-            vehiculo.estado = schema.estado
-
         self.db.commit()
         self.db.refresh(vehiculo)
         return vehiculo
 
-    def delete_vehiculo(self, vehiculo_id: int) -> dict:
+    def delete_vehiculo(self, vehiculo_id: int, usuario_id: int) -> dict:
         vehiculo = self.get_vehiculo_by_id(vehiculo_id)
         vehiculo.estado = "inactivo"
+        vehiculo.fecha_baja = datetime.now(timezone.utc)
+        vehiculo.usuario_baja = usuario_id
         self.db.commit()
         return {"detail": "Vehículo marcado como inactivo correctamente."}

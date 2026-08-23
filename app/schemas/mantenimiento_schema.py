@@ -20,6 +20,8 @@ class MantenimientoResponse(MantenimientoBase):
     id: int
     vehiculo_id: int
     estado: str
+    fecha_baja: Optional[datetime] = None
+    usuario_baja: Optional[int] = None
 
     class Config:
         from_attributes = True

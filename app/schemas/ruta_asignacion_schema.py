@@ -56,6 +56,8 @@ class RutaAsignacionResponse(RutaAsignacionBase):
     vehiculo_id: int
     trabajador_id: int
     estado_ruta: str
+    fecha_baja: Optional[datetime] = None
+    usuario_baja: Optional[int] = None
     kilometraje_salida: Optional[float] = None
     kilometraje_llegada: Optional[float] = None
     combustible_salida: Optional[str] = None

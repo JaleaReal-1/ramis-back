@@ -43,6 +43,6 @@ def actualizar_mantenimiento(id: int, schema: MantenimientoUpdate, db: DbDep, _:
     return service.update_mantenimiento(id, schema)
 
 @router.delete("/{id}")
-def eliminar_mantenimiento(id: int, db: DbDep, _: Annotated[User, Depends(require_maintenance_manager)]):
+def eliminar_mantenimiento(id: int, db: DbDep, user: Annotated[User, Depends(require_maintenance_manager)]):
     service = MantenimientoService(db)
-    return service.delete_mantenimiento(id)
+    return service.delete_mantenimiento(id, user.id)

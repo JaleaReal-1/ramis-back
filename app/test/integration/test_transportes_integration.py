@@ -10,15 +10,15 @@ from app.models.user import User
 
 @pytest.fixture(autouse=True)
 def override_auth(db_session):
-    # Crear un usuario administrador de respaldo para la autenticación por defecto
+    # Crear un usuario almacenero para los flujos de gestión de transportes.
     user = User(
         nombre="Admin",
         apellidos="Principal",
         dni="12345678",
-        cargo="Administrador",
+        cargo="Almacenero",
         email="admin@test.com",
         password="hashed_password",
-        role="admin"
+        role="almacenero"
     )
     db_session.add(user)
     db_session.commit()
@@ -119,7 +119,7 @@ def test_listar_rutas_y_crear_asignacion(client):
     assert vehiculo_asignado.json()["estado"] == "asignado"
 
 
-def test_iniciar_ruta(client, db_session):
+def test_iniciar_ruta(client, db_session, override_auth):
     vehiculo = _crear_vehiculo(client)
     trabajador = _register_trabajador(client)
     salida = datetime.utcnow()
@@ -177,6 +177,7 @@ def test_iniciar_ruta(client, db_session):
     assert data["check_llantas"] is True
 
     # El vehículo pasa a estar 'en_ruta'
+    app.dependency_overrides[get_current_user] = lambda: override_auth
     vehiculo_en_ruta = client.get(f"/api/vehiculos/{vehiculo['id']}")
     assert vehiculo_en_ruta.json()["estado"] == "en_ruta"
 

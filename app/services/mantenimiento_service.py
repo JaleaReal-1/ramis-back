@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
+from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from app.models.mantenimiento import Mantenimiento
 from app.models.vehiculo import Vehiculo
@@ -83,8 +84,10 @@ class MantenimientoService:
         self.db.refresh(mantenimiento)
         return mantenimiento
 
-    def delete_mantenimiento(self, mantenimiento_id: int) -> dict:
+    def delete_mantenimiento(self, mantenimiento_id: int, usuario_id: int) -> dict:
         mantenimiento = self.get_mantenimiento_by_id(mantenimiento_id)
         mantenimiento.estado = "inactivo"
+        mantenimiento.fecha_baja = datetime.now(timezone.utc)
+        mantenimiento.usuario_baja = usuario_id
         self.db.commit()
         return {"detail": "Mantenimiento marcado como inactivo correctamente."}

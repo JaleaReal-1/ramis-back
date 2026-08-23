@@ -43,6 +43,6 @@ def actualizar_vehiculo(id: int, schema: VehiculoUpdate, db: DbDep, _: Annotated
     return service.update_vehiculo(id, schema)
 
 @router.delete("/{id}")
-def eliminar_vehiculo(id: int, db: DbDep, _: Annotated[User, Depends(require_almacenero)]):
+def eliminar_vehiculo(id: int, db: DbDep, user: Annotated[User, Depends(require_almacenero)]):
     service = VehiculoService(db)
-    return service.delete_vehiculo(id)
+    return service.delete_vehiculo(id, user.id)

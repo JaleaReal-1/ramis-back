@@ -12,6 +12,8 @@ class Mantenimiento(Base):
     descripcion_falla = Column(String, nullable=False)
     costo = Column(Float, nullable=False)
     estado = Column(String, default="en_taller", nullable=False)
+    fecha_baja = Column(DateTime, nullable=True)
+    usuario_baja = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     # Relaciones
     vehiculo = relationship("Vehiculo", back_populates="mantenimientos")

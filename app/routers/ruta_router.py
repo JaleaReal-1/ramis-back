@@ -75,9 +75,9 @@ def iniciar_ruta(
     return service.iniciar_ruta(id, schema)
 
 @router.delete("/{id}")
-def eliminar_ruta(id: int, db: DbDep, _: Annotated[User, Depends(require_route_manager)]):
+def eliminar_ruta(id: int, db: DbDep, user: Annotated[User, Depends(require_route_manager)]):
     service = RutaService(db)
-    return service.delete_ruta(id)
+    return service.delete_ruta(id, user.id)
 
 @router.patch("/{id}/finalizar", response_model=RutaAsignacionResponse)
 def finalizar_ruta(id: int, schema: RutaAsignacionFinalizar, db: DbDep, current_user: CurrentUserDep):

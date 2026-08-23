@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional
+from datetime import datetime
 
 class VehiculoBase(BaseModel):
     placa: str = Field(..., description="Placa única del vehículo")
@@ -15,11 +16,12 @@ class VehiculoUpdate(BaseModel):
     marca: Optional[str] = None
     modelo: Optional[str] = None
     capacidad_carga: Optional[float] = None
-    estado: Optional[str] = None
 
 class VehiculoResponse(VehiculoBase):
     id: int
     estado: str
+    fecha_baja: Optional[datetime] = None
+    usuario_baja: Optional[int] = None
 
     class Config:
         from_attributes = True

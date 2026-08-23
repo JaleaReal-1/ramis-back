@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
@@ -11,7 +12,7 @@ import os
 from app.database.base import Base
 from app.database.connection import engine, get_db
 from app.models.user import User
-import app.models  # noqa: F401  — registra vehiculos, rutas y mantenimientos en Base.metadata
+import app.models  # noqa: F401
 from app.security.hashing import Hash
 from sqlalchemy.orm import Session
 
@@ -25,32 +26,15 @@ from app.routers.almacen_devolucion import router as almacen_devolucion_router
 from app.routers.vehiculo_router import router as vehiculo_router
 from app.routers.ruta_router import router as ruta_router
 from app.routers.mantenimiento_router import router as mantenimiento_router
-app = FastAPI(title="Sistema con Roles y Auth")
-
-# -------------------------------
-# RUTA ROOT (IMPORTANTE PARA RAILWAY)
-# -------------------------------
-@app.get("/")
-def root():
-    return {"status": "OK", "message": "FastAPI alive"}
-
-# -------------------------------
-# CREACIÓN AUTOMÁTICA DE CARPETAS
-# -------------------------------
-FOLDERS = [
-    "uploads",
-    "uploads/comprobantes",
-    "uploads/ordenes_compra",
-    "temp_files",
-    "static",
-    "static/firmas",
-    "static/generados",
-    "static/templates"  # 👈 plantillas
-]
-
-from app.routers.almacen_articulo_router import router as almacen_articulo_router
-from app.routers.almacen_prestamo import router as almacen_prestamo_router
-from app.routers.almacen_devolucion import router as almacen_devolucion_router
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    db = next(get_db())
+    try:
+        seed_admin_user(db)
+    finally:
+        db.close()
+    yield
 
 
 app = FastAPI(
@@ -74,7 +58,8 @@ app = FastAPI(
     contact={
         "name": "Equipo Orbit - UPeU Juliaca",
         "url": "https://github.com/russbell456/ramissac",
-    }
+    },
+    lifespan=lifespan
 )
 
 
@@ -115,7 +100,6 @@ for folder in FOLDERS:
 
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 
@@ -140,32 +124,10 @@ def seed_admin_user(db: Session):
     else:
         print("Usuario admin ya existe.")
 
-# -------------------------------
-# STARTUP (CLAVE PARA RAILWAY)
-# -------------------------------
-@app.on_event("startup")
-def on_startup():
-    # Crear tablas
-    Base.metadata.create_all(bind=engine)
-print("✅ Usuario admin de respaldo creado.")
-
-@app.on_event("startup")
-def on_startup():
-    Base.metadata.create_all(bind=engine)
-    db = next(get_db())
-    try:
-        seed_admin_user(db)
-    finally:
-        db.close()
-
 app.include_router(almacen_devolucion_router)
 app.include_router(almacen_articulo_router)
 app.include_router(almacen_prestamo_router)
 app.include_router(auth_router)
-app.include_router(auth_router)
-app.include_router(almacen_articulo_router)
-app.include_router(almacen_prestamo_router)
-app.include_router(almacen_devolucion_router)
 app.include_router(vehiculo_router)
 app.include_router(ruta_router)
 app.include_router(mantenimiento_router)
