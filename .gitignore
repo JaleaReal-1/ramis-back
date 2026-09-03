@@ -39,3 +39,9 @@ security_chart.png
 # -------------------------
 *.log
 ramistoolx_image.tar
+
+# -------------------------
+# Archivos de deploy locales
+# -------------------------
+check_roles.sql
+docker-compose.prod.yml
