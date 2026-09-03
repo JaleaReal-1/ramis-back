@@ -18,12 +18,12 @@ router = APIRouter(prefix="/api/mantenimientos", tags=["Mantenimientos"])
 
 # RBAC Helpers
 def require_almacenero(current_user: User = Depends(get_current_user)):
-    if current_user.role != "almacenero":
+    if current_user.role not in ["almacenero", "admin"]:
         raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere rol almacenero.")
     return current_user
 
 def require_almacenero_o_trabajador(current_user: User = Depends(get_current_user)):
-    if current_user.role not in ["almacenero", "trabajador"]:
+    if current_user.role not in ["almacenero", "trabajador", "admin"]:
         raise HTTPException(status_code=403, detail="Acceso denegado.")
     return current_user
 

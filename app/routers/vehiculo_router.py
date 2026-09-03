@@ -18,7 +18,7 @@ DbDep = Annotated[Session, Depends(get_db)]
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
 
 def require_almacenero(user: CurrentUserDep) -> User:
-    if user.role != "almacenero":
+    if user.role not in ["almacenero", "admin"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo el almacenero puede gestionar vehículos.")
     return user
 

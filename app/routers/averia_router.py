@@ -16,8 +16,8 @@ router = APIRouter(prefix="/api/averias", tags=["averias"])
 
 
 def require_almacenero(current_user: User = Depends(get_current_user)) -> User:
-    """Verificar que usuario es almacenero"""
-    if current_user.role != "almacenero":
+    """Verificar que usuario es almacenero o admin"""
+    if current_user.role not in ["almacenero", "admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo almaceneros pueden acceder a este recurso"
@@ -26,8 +26,8 @@ def require_almacenero(current_user: User = Depends(get_current_user)) -> User:
 
 
 def require_almacenero_o_trabajador(current_user: User = Depends(get_current_user)) -> User:
-    """Verificar que usuario es almacenero o trabajador"""
-    if current_user.role not in ["almacenero", "trabajador"]:
+    """Verificar que usuario es almacenero, trabajador o admin"""
+    if current_user.role not in ["almacenero", "trabajador", "admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo almaceneros y trabajadores pueden acceder"
