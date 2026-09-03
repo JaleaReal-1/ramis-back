@@ -7,6 +7,7 @@ from app.models.ruta_asignacion import RutaAsignacion
 from app.models.vehiculo import Vehiculo
 from app.models.user import User
 from app.models.mantenimiento import Mantenimiento
+from app.models.inspeccion import Inspeccion
 from app.schemas.ruta_asignacion_schema import (
     RutaAsignacionCreate,
     RutaAsignacionUpdate,
@@ -114,12 +115,43 @@ class RutaService:
                 detail="Todos los checks de inspección deben ser aprobados (True) para iniciar la ruta."
             )
 
+        # REGLA OBLIGATORIA: Debe existir una inspección SALIDA aprobada para iniciar la ruta.
+        ultima_salida = self.db.query(Inspeccion).filter(
+            Inspeccion.vehiculo_id == ruta.vehiculo_id,
+            Inspeccion.tipo == "salida",
+        ).order_by(Inspeccion.fecha.desc()).first()
+
+        if not ultima_salida:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No existe inspección de SALIDA para este vehículo. Realice la inspección de salida antes de iniciar la ruta."
+            )
+
+        if ultima_salida.resultado == "rechazada":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La inspección de SALIDA fue rechazada. No se puede iniciar la ruta. Resuelva los problemas críticos y realice una nueva inspección."
+            )
+
+        if ultima_salida.resultado not in ("aprobada", "aprobada_con_observaciones"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"La inspección de SALIDA tiene resultado '{ultima_salida.resultado}'. No se puede iniciar la ruta."
+            )
+
         # Buscar el vehículo
         vehiculo = self.db.query(Vehiculo).filter(Vehiculo.id == ruta.vehiculo_id).first()
         if not vehiculo:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Vehículo no encontrado."
+            )
+
+        # Validar que el vehículo no esté bloqueado
+        if vehiculo.estado == "bloqueado":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El vehículo está bloqueado. Debe resolver los problemas detectados en la inspección."
             )
 
         # Actualizar datos de inicio
@@ -184,10 +216,14 @@ class RutaService:
                 vehiculo.estado = "en_mantenimiento"
                 nuevo_mantenimiento = Mantenimiento(
                     vehiculo_id=ruta.vehiculo_id,
-                    fecha_ingreso=datetime.now(timezone.utc),
-                    descripcion_falla=schema.observaciones_llegada,
+                    tipo_mantenimiento="correctivo",
+                    descripcion=schema.observaciones_llegada or "Mantenimiento por observaciones en ruta",
                     costo=0.0,
-                    estado="en_taller"
+                    estado_mantenimiento="NORMAL",
+                    estado_ejecucion="pendiente",
+                    fecha_registro=datetime.now(timezone.utc),
+                    km_registro=ruta.kilometraje_llegada or vehiculo.kilometraje_actual,
+                    horas_registro=0.0,
                 )
                 self.db.add(nuevo_mantenimiento)
             else:

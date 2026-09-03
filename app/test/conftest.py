@@ -4,7 +4,7 @@ os.environ["TESTING"] = "1"
 import pytest
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -33,6 +33,32 @@ TestingSessionLocal = sessionmaker(
 
 # Crear tablas UNA sola vez
 Base.metadata.create_all(bind=engine)
+
+# Insertar datos iniciales de checklist_items para tests
+def _seed_checklist_items():
+    """Insertar datos iniciales de checklist items para tests"""
+    db = TestingSessionLocal()
+    try:
+        # Verificar si ya existen
+        result = db.execute(text("SELECT COUNT(*) as cnt FROM checklist_items")).scalar()
+        if result == 0:
+            db.execute(text("""
+                INSERT INTO checklist_items (nombre, categoria, criticidad, orden, activo) VALUES
+                ('Frenos', 'Seguridad', 'critica', 1, 1),
+                ('Llantas', 'Seguridad', 'critica', 2, 1),
+                ('Luces principales', 'Iluminación', 'critica', 3, 1),
+                ('Nivel de Aceite', 'Motor', 'media', 4, 1),
+                ('Nivel de Refrigerante', 'Motor', 'media', 5, 1),
+                ('Espejos Retrovisores', 'Carrocería', 'baja', 6, 1),
+                ('Extintor de Emergencia', 'Seguridad', 'alta', 7, 1),
+                ('Botiquín de Primeros Auxilios', 'Seguridad', 'alta', 8, 1),
+                ('Cinturones de Seguridad', 'Seguridad', 'critica', 9, 1)
+            """))
+            db.commit()
+    finally:
+        db.close()
+
+_seed_checklist_items()
 
 
 @pytest.fixture(scope="function")

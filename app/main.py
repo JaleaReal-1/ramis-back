@@ -26,6 +26,9 @@ from app.routers.almacen_devolucion import router as almacen_devolucion_router
 from app.routers.vehiculo_router import router as vehiculo_router
 from app.routers.ruta_router import router as ruta_router
 from app.routers.mantenimiento_router import router as mantenimiento_router
+from app.routers.inspeccion_router import router as inspeccion_router
+from app.routers.averia_router import router as averia_router
+from app.routers.incidente_router import router as incidente_router
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
@@ -131,3 +134,6 @@ app.include_router(auth_router)
 app.include_router(vehiculo_router)
 app.include_router(ruta_router)
 app.include_router(mantenimiento_router)
+app.include_router(inspeccion_router)
+app.include_router(averia_router)
+app.include_router(incidente_router)

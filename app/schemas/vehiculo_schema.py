@@ -20,6 +20,7 @@ class VehiculoUpdate(BaseModel):
 class VehiculoResponse(VehiculoBase):
     id: int
     estado: str
+    kilometraje_actual: float = 0.0
     fecha_baja: Optional[datetime] = None
     usuario_baja: Optional[int] = None
 

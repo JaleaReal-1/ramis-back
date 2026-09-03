@@ -12,6 +12,7 @@ class Vehiculo(Base):
     modelo = Column(String, nullable=False)
     capacidad_carga = Column(Float, nullable=False)
     estado = Column(String, default="disponible", nullable=False)
+    kilometraje_actual = Column(Float, default=0.0, nullable=False)
     fecha_baja = Column(DateTime, nullable=True)
     usuario_baja = Column(Integer, ForeignKey("users.id"), nullable=True)
 
